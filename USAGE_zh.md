@@ -107,3 +107,44 @@ zip 内应包含 Genie-TTS 需要的 ONNX 文件（通常在同一目录下）�
 ### 首次加载/生成很慢
 
 首次需要下载 `GenieData` 和模型文件，属于正常现象。建议在 Spaces 开启 Persistent Storage 以便缓存。
+
+## 5. 作为 Python 接口函数库调用（远程）
+
+如果你已经把 easytts 部署到了 ModelScope / HuggingFace（能在浏览器里正常使用 WebUI），你也可以在自己的 Python 项目里直接调用“线上 WebUI”来合成语音。
+
+### 5.1 配置 Token（两选一）
+
+**方式 A：写本地配置文件（推荐本地开发）**
+
+1) 复制 `easytts_secrets.example.py` 为 `easytts_secrets.py`
+2) 填入 `EASYTTS_STUDIO_TOKEN`（注意：不要把 token 提交到 git，也不要发到聊天里）
+
+**方式 B：环境变量（推荐部署/生产）**
+
+- `EASYTTS_BASE_URL`：默认 `https://yunchenqwq-easytts.ms.show`
+- `EASYTTS_STUDIO_TOKEN`：必填（机密）
+- `EASYTTS_FN_INDEX`：默认 `3`
+- `EASYTTS_TRIGGER_ID`：默认 `19`
+
+### 5.2 代码示例
+
+```python
+from easytts_client import EasyTTS
+
+tts = EasyTTS()
+
+# 1) 使用预设角色 + 预设情绪（不需要你自己上传参考音频）
+res = tts.tts_preset(text="私も昔、これと似たようなの持ってたなぁ…。", character="mika", preset="普通")
+EasyTTS.save(res, "out_preset.wav")
+
+# 2) 上传参考音频 + 参考文本（更强的情绪/语调克隆）
+# 注意：reference_text 必须与参考音频里说的话一致
+res = tts.tts_upload(
+    text="你好，今天心情有点难过。",
+    character="mika",
+    preset="伤心",
+    reference_audio="ref.ogg",   # 也可以传 bytes
+    reference_text="我今天心情真的很难过。",
+)
+EasyTTS.save(res, "out_upload.wav")
+```
