@@ -28,7 +28,7 @@ class EasyTTS:
         self,
         cfg: Optional[EasyTTSRemoteConfig] = None,
         *,
-        trust_env: bool = True,
+        trust_env: bool = False,
         timeout_sec: int = 300,
     ):
         self.cfg = cfg or load_remote_config()
@@ -113,4 +113,3 @@ class EasyTTS:
         p.parent.mkdir(parents=True, exist_ok=True)
         p.write_bytes(result.audio_bytes)
         return p
-
