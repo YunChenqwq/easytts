@@ -82,6 +82,7 @@ class EasyTTS:
             split_sentence=split_sentence,
             uploaded_paths=uploaded_paths,
             reference_text=reference_text,
+            reference_filename=reference_filename,
         )
 
     def tts_upload(

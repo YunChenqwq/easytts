@@ -27,20 +27,22 @@ def main() -> None:
 
     # 2) 上传参考音频 + 参考文本（可选：把 ref.ogg 放到同目录）
     ref_path = Path("ref.ogg")
-    if ref_path.exists():
-        upload_result = tts.tts_upload(
-            text="你好，今天心情有点难过。",
-            character="mika",
-            preset="伤心",
-            reference_audio=ref_path,
-            reference_text="我今天心情真的很难过。",
-        )
-        EasyTTS.save(upload_result, "out_upload.wav")
-        print("saved: out_upload.wav")
-        print("audio_url:", upload_result.audio_url)
-    else:
+    if not ref_path.exists():
         print("skip upload demo: ref.ogg not found")
+        return
+
+    upload_result = tts.tts_upload(
+        text="你好，今天心情有点难过。",
+        character="mika",
+        preset="伤心",
+        reference_audio=ref_path,
+        reference_text="我今天心情真的很难过。",
+    )
+    EasyTTS.save(upload_result, "out_upload.wav")
+    print("saved: out_upload.wav")
+    print("audio_url:", upload_result.audio_url)
 
 
 if __name__ == "__main__":
     main()
+
