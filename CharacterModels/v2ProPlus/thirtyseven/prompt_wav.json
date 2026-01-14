@@ -1,0 +1,14 @@
+{
+  "Normal": {
+    "wav": "En_play_hero3066_fightingvoc_19.wav",
+    "text": "And now, I belong to this set."
+  },
+  "Sad": {
+    "wav": "En_play_hero3066_mainvoc_8.wav",
+    "text": "These people next door are really noisy. Could you please tell them to quiet down? These \"Romans\" have disturbed my circles!"
+  },
+  "Angry": {
+    "wav": "En_play_hero3066_mainvoc_6.wav",
+    "text": "Urrrrgh, I will not take another step closer to that table unless those brown bean juice drinkers leave first!"
+  }
+}
