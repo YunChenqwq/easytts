@@ -4,7 +4,7 @@ import json
 import time
 import uuid
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 import requests
 
@@ -80,15 +80,33 @@ class EasyTTSRemoteClient:
         text: str,
         preset: str = "普通",
         split_sentence: bool = True,
-        uploaded_paths: List[str],
+        uploaded_paths: Union[List[str], str, Dict[str, Any]],
         reference_text: str,
+        reference_filename: str = "ref.wav",
     ) -> RemoteAudioResult:
+        audio_value: Dict[str, Any]
+        if isinstance(uploaded_paths, dict):
+            audio_value = uploaded_paths
+        else:
+            uploaded_path: str
+            if isinstance(uploaded_paths, list):
+                if not uploaded_paths:
+                    raise RuntimeError("uploaded_paths is empty.")
+                uploaded_path = uploaded_paths[0]
+            else:
+                uploaded_path = uploaded_paths
+            audio_value = {
+                "path": uploaded_path,
+                "orig_name": reference_filename,
+                "meta": {"_type": "gradio.FileData"},
+            }
+
         payload = {
             "fn_index": self.cfg.fn_index,
             "trigger_id": self.cfg.trigger_id,
             "session_hash": uuid.uuid4().hex[:11],
             "dataType": self.data_type,
-            "data": [character, text, split_sentence, "upload", preset, uploaded_paths, reference_text],
+            "data": [character, text, split_sentence, "upload", preset, audio_value, reference_text],
         }
         return self._submit_and_wait(payload)
 
