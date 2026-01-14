@@ -1,0 +1,3 @@
+./Genie-TTS-master
+gradio>=4.0
+

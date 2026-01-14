@@ -1,0 +1,45 @@
+# .gitignore
+
+OpenVenv.bat
+Config.txt
+chinese-hubert-base.onnx
+open_jtalk_dic_utf_8-1.11/
+Docs/
+GenieData/
+CharacterModels/
+UserData/
+GENIE_ENV/
+Deprecated/
+test/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.Python
+env/
+venv/
+.venv/
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+downloads/
+eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg
+
+# Editor directories and files
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# MacOS
+.DS_Store

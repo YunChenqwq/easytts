@@ -1,0 +1,74 @@
+# pyproject.toml
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "genie-tts"
+version = "2.0.2"
+authors = [
+    { name = "High_Logic", email = "highlogic233@gmail.com" },
+]
+description = "GPT-SoVITS ONNX Inference Engine & Model Converter"
+# readme = "README.md"
+requires-python = ">=3.9"
+license = "MIT"
+license-files = ["LICENSE"]
+classifiers = [
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
+
+dependencies = [
+    "onnx", # ONNX 模型格式支持
+    "onnxruntime==1.22.1", # ONNX 推理引擎, 指定版本号以避免 1.23 的性能倒退
+    "tokenizers", # HuggingFace tokenizer
+    "numpy", # 数值计算
+    "soundfile", # 音频读写
+    "soxr", # 高质量重采样
+    "pyyaml", # YAML 解析
+    "sounddevice", # 音频播放
+    "pydantic", # 配置 / 数据模型
+    "huggingface_hub[hf_xet]", # HF Hub 支持 + xet
+    "fastapi", # Web API 框架
+    "uvicorn[standard]", # ASGI 服务器
+    # 日文 G2P
+    "pyopenjtalk-plus", # 日语 G2P
+    # 英文 G2P
+    "nltk", # 英语 NLP 工具
+    # 中文 G2P
+    "pypinyin", # 中文拼音
+    "g2pM", # 中文 G2P 模型
+    "jieba", # 中文分词（默认使用纯 Python 版，Windows 无需编译工具）
+]
+
+[project.optional-dependencies]
+# 可选：更快的中文分词（需要本机 C++ 编译工具，Windows 上通常需要安装 VS Build Tools）
+zh-fast = ["jieba_fast"]
+
+# 可选：韩语 G2P（部分依赖需要本机 C++ 编译工具）
+ko = ["jamo", "ko_pron", "g2pk2", "eunjeon"]
+
+
+[project.urls]
+Homepage = "https://github.com/High-Logic/Genie"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.package-data]
+"genie_tts" = [
+    "Data/v2/Models/*",
+    "Data/v2/Keys/*",
+    "Data/v2ProPlus/Models/*",
+    "Data/v2ProPlus/Keys/*",
+]

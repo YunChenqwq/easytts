@@ -1,0 +1,45 @@
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*.pyd
+*.so
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+
+# ---- OS / IDE ----
+.DS_Store
+Thumbs.db
+Desktop.ini
+.vscode/
+.idea/
+
+# ---- easytts local artifacts (do not commit large downloads) ----
+# Hugging Face / model resources (auto-downloaded at runtime)
+GenieData/
+CharacterModels/
+models/
+
+# Local caches / wheels
+.cache/
+_wheels/
+__pycache__/
+
+# Local outputs
+/output*.wav
+/output*.flac
+/output*.ogg
+/output*.aiff
+/output*.aif
+
+# Logs
+*.log
+
