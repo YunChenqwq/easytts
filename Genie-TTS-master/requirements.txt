@@ -21,7 +21,7 @@ pyopenjtalk-plus
 nltk
 
 # 中文 G2P
-pypinyin
+pypinyin==0.55.0
 g2pM
 jieba
 

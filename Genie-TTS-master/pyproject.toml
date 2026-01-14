@@ -43,7 +43,7 @@ dependencies = [
     # 英文 G2P
     "nltk", # 英语 NLP 工具
     # 中文 G2P
-    "pypinyin", # 中文拼音
+    "pypinyin==0.55.0", # 中文拼音（固定版本，避免新版接口变更导致导入失败）
     "g2pM", # 中文 G2P 模型
     "jieba", # 中文分词（默认使用纯 Python 版，Windows 无需编译工具）
 ]
