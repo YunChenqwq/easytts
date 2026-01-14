@@ -27,7 +27,7 @@ class EasyTTSRemoteClient:
     - GET  /gradio_api/file=...
     """
 
-    def __init__(self, cfg: EasyTTSRemoteConfig, *, trust_env: bool = True, timeout_sec: int = 300):
+    def __init__(self, cfg: EasyTTSRemoteConfig, *, trust_env: bool = False, timeout_sec: int = 300):
         self.cfg = cfg
         self.timeout_sec = timeout_sec
         self.session = requests.Session()
@@ -138,15 +138,20 @@ class EasyTTSRemoteClient:
                 out = (evt.get("output") or {}).get("data") or []
                 if not out:
                     raise RuntimeError(f"process_completed but output.data is empty: {evt}")
-                first = out[0]
-                if isinstance(first, dict):
-                    audio_url = first.get("url") or first.get("path")
-                    file_path = first.get("path")
-                    orig_name = first.get("orig_name")
-                elif isinstance(first, str):
-                    audio_url = first
+                picked = self._pick_output_audio(out)
+                if isinstance(picked, dict):
+                    file_path = picked.get("path")
+                    orig_name = picked.get("orig_name")
+                    audio_url = picked.get("url") or None
+                    if not audio_url:
+                        if isinstance(file_path, str) and file_path.startswith("/tmp/"):
+                            audio_url = f"{self.cfg.base_url}/gradio_api/file={file_path}"
+                        elif isinstance(file_path, str) and file_path.startswith("/gradio_api/"):
+                            audio_url = f"{self.cfg.base_url}{file_path}"
+                elif isinstance(picked, str):
+                    audio_url = picked
                 else:
-                    raise RuntimeError(f"Unexpected output.data[0] type: {type(first)}")
+                    raise RuntimeError(f"Unexpected picked output type: {type(picked)}")
                 break
 
         if not audio_url:
@@ -157,3 +162,31 @@ class EasyTTSRemoteClient:
 
         return RemoteAudioResult(audio_url=audio_url, file_path=file_path, orig_name=orig_name)
 
+    def _pick_output_audio(self, out: List[Any]) -> Any:
+        best_idx = -1
+        best_score = -1
+
+        for idx, item in enumerate(out):
+            s = ""
+            if isinstance(item, dict):
+                s = " ".join(str(x or "") for x in (item.get("orig_name"), item.get("path"), item.get("url")))
+            elif isinstance(item, str):
+                s = item
+            else:
+                continue
+
+            score = 0
+            if "genie_" in s:
+                score += 10
+            if ".wav" in s.lower():
+                score += 2
+            if "/tmp/gradio" in s:
+                score += 1
+
+            if score > best_score or (score == best_score and idx > best_idx):
+                best_score = score
+                best_idx = idx
+
+        if best_idx >= 0:
+            return out[best_idx]
+        return out[-1]
