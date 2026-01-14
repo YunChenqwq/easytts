@@ -148,3 +148,33 @@ res = tts.tts_upload(
 )
 EasyTTS.save(res, "out_upload.wav")
 ```
+
+## 6. 本地 Python 调用（不走云端）
+
+如果你想在本地直接用 Python 调用（不通过 WebUI / 不通过云端），可以使用 `EasyTTSLocal`（内部直接调用 `genie_tts` 推理）。
+
+前提：
+- 已安装依赖（与你本地 WebUI 相同环境即可）
+- 已有模型资源：`GenieData/` 与 `CharacterModels/`（第一次使用会自动下载/初始化，取决于你的网络与设置）
+
+示例：
+
+```python
+from easytts_client import EasyTTSLocal, EasyTTS
+
+tts = EasyTTSLocal()
+
+# 预设角色 + 预设情绪（使用本地 prompt_wav.json + prompt_wav/）
+res = tts.tts_preset(text="你好", character="mika", preset="普通", out_path="local_preset.wav")
+EasyTTS.save(res, "local_preset.wav")
+
+# 上传参考音频（本地文件）+ 参考文本
+res = tts.tts_upload(
+    text="你好，今天心情有点难过。",
+    character="mika",
+    reference_audio="ref.ogg",
+    reference_text="我今天心情真的很难过。",
+    out_path="local_upload.wav",
+)
+EasyTTS.save(res, "local_upload.wav")
+```
