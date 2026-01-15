@@ -358,6 +358,25 @@ def build_demo() -> gr.Blocks:
 
         changed = False
 
+        # Sanity check for extracted model dirs: avoid caching a broken extraction forever.
+        required_onnx_files = {
+            "t2s_encoder_fp32.bin",
+            "t2s_encoder_fp32.onnx",
+            "t2s_first_stage_decoder_fp32.onnx",
+            "t2s_shared_fp16.bin",
+            "t2s_stage_decoder_fp32.onnx",
+            "vits_fp16.bin",
+            "vits_fp32.onnx",
+        }
+
+        def is_valid_extracted_model_dir(model_dir: str) -> bool:
+            try:
+                onnx_dir = _pick_onnx_model_dir(model_dir)
+                files = {p.name for p in Path(onnx_dir).iterdir() if p.is_file()}
+                return required_onnx_files.issubset(files)
+            except Exception:
+                return False
+
         for zip_path in sorted(set(pack_zips)):
             try:
                 meta_in_zip = _read_pack_meta_from_zip(zip_path)
@@ -371,13 +390,22 @@ def build_demo() -> gr.Blocks:
                 prev = state.get(key) if isinstance(state, dict) else None
                 need_extract = True
                 if isinstance(prev, dict) and prev.get("sig") == sig and os.path.isdir(dest):
-                    need_extract = False
+                    # If dest exists but is missing required files (e.g. a bad/partial extraction),
+                    # force re-extraction instead of caching a broken folder.
+                    if is_valid_extracted_model_dir(dest):
+                        need_extract = False
+                    else:
+                        logs.append(f"检测到残缺模型目录，强制重新解压：{name_guess}")
 
                 if need_extract:
                     if os.path.exists(dest):
                         shutil.rmtree(dest, ignore_errors=True)
                     _safe_extract_zip(zip_path, dest)
                     _save_meta(dest, model_name=name_guess, language=language)
+                    # Post-check: if still invalid, don't keep the broken folder / state.
+                    if not is_valid_extracted_model_dir(dest):
+                        shutil.rmtree(dest, ignore_errors=True)
+                        raise RuntimeError("解压后仍缺少 ONNX 必需文件（请检查 zip 是否完整上传）")
                     state[key] = {"sig": sig, "model_name": name_guess, "language": language}
                     changed = True
                     logs.append(f"已导入模型包：{Path(zip_path).name} -> {name_guess}")
