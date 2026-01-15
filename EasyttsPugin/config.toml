@@ -1,0 +1,96 @@
+[plugin]
+# 是否启用插件
+enabled = true
+# 配置版本（不要随意修改）
+config_version = "0.1.0"
+
+[general]
+# 默认后端（本插件仅支持 easytts）
+default_backend = "easytts"
+# Action/Command 总体超时（秒）
+timeout = 60
+# 最大文本长度（超过会降级为文字回复）
+max_text_length = 200
+# Action 是否调用 LLM 生成/润色最终语音回复文本
+use_replyer_rewrite = true
+# 保存音频文件的目录（留空使用项目根目录；use_base64_audio=true 时一般不落盘）
+audio_output_dir = ""
+# 是否用 base64 方式发送语音（推荐 true：无需保存文件）
+use_base64_audio = true
+# Action 是否按标点分句逐句发送语音
+split_sentences = true
+# 分句发送间隔（秒）
+split_delay = 0.3
+# 失败时是否给用户发送错误提示
+send_error_messages = true
+
+[components]
+# 是否启用 Action（关键词触发自动语音回复）
+action_enabled = true
+# 是否启用 Command（手动命令：仅 /eztts）
+command_enabled = true
+
+[probability]
+# 是否启用概率控制（false=每次都触发语音；true=按概率触发）
+enabled = false
+# 触发概率（0~1）
+base_probability = 1.0
+# 命中强制关键词时无视概率，必触发
+keyword_force_trigger = true
+# 强制触发关键词列表
+force_keywords = ["一定要用语音", "必须语音", "语音回复"]
+
+[easytts]
+# 默认角色（character）
+default_character = "mika"
+# 默认预设（preset）
+default_preset = "普通"
+
+[[easytts.characters]]
+# 角色名
+name = "mika"
+# 该角色可用的预设列表
+presets = ["普通", "开心", "伤心", "生气", "害怕", "害羞", "惊讶", "认真", "疑问", "痛苦", "百感交集释然"]
+
+[easytts.emotion_preset_map]
+# 全局情绪 -> 预设名映射（用于按情绪回复）
+普通 = "普通"
+开心 = "开心"
+伤心 = "伤心"
+生气 = "生气"
+害怕 = "害怕"
+害羞 = "害羞"
+惊讶 = "惊讶"
+认真 = "认真"
+疑问 = "疑问"
+痛苦 = "痛苦"
+百感交集释然 = "百感交集释然"
+
+# 是否让远端也进行“分句合成”（Gradio 入参 split_sentence）
+remote_split_sentence = true
+# 是否优先选择更空闲的仓库（依据 queue/status 的 queue_size）
+prefer_idle_endpoint = true
+# 繁忙阈值：queue_size > 该值视为忙（0=只有 queue_size==0 才算空闲）
+busy_queue_threshold = 0
+# /gradio_api/queue/status 超时（秒）
+status_timeout = 3
+# /gradio_api/queue/join 超时（秒）
+join_timeout = 30
+# /gradio_api/queue/data（SSE）超时（秒）
+sse_timeout = 120
+# 音频下载超时（秒）
+download_timeout = 120
+# aiohttp 是否继承系统代理（Windows 环境常见代理导致连接问题，建议 false）
+trust_env = false
+
+[[easytts.endpoints]]
+# 仓库名（自定义，用于日志）
+name = "default"
+# Gradio 基地址（例如 https://xxx.ms.show）
+base_url = ""
+# studio_token（必填）
+studio_token = ""
+# 触发合成的 fn_index（不同部署可能不同）
+fn_index = 3
+# 触发合成的 trigger_id（不同部署可能不同）
+trigger_id = 19
