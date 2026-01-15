@@ -1,4 +1,4 @@
----
+﻿---
 title: easytts
 emoji: 🎤
 colorFrom: indigo
@@ -207,3 +207,4 @@ res = tts.tts_upload(
 EasyTTS.save(res, "local_upload.wav")
 ```
 
+\n\n## MaiBot 插件\n- EasyttsPlugin（独立仓库）：https://github.com/YunChenqwq/EasyttsPlugin\n
