@@ -1,0 +1,25 @@
+{
+  "manifest_version": 1,
+  "name": "easytts 语音合成插件（云端仓库池）",
+  "version": "0.1.0",
+  "description": "基于 tts_voice_plugin（AGPL-3.0）架构改造：仅保留 EasyTTS（ModelScope Studio / Gradio）语音合成功能，并支持云端仓库池自动切换（当一个仓库忙时使用另一个）。",
+  "author": { "name": "yunchenqwq", "url": "https://github.com/YunChenqwq" },
+  "license": "AGPL-v3.0",
+  "repository_url": "https://github.com/YunChenqwq/easytts",
+  "default_locale": "zh-CN",
+  "plugin_info": {
+    "plugin_type": "general",
+    "components": [
+      { "type": "action", "name": "unified_tts_action", "description": "关键词触发自动语音回复（easytts 仓库池）。" },
+      { "type": "command", "name": "unified_tts_command", "description": "手动 /tts 转语音（easytts 仓库池）。" }
+    ],
+    "dependencies": { "python": ["aiohttp"], "system": [], "plugins": [] }
+  },
+  "configuration": {
+    "config_file": "config.toml",
+    "config_template": "config.toml.example",
+    "auto_generate": true
+  },
+  "id": "yunchenqwq.easytts_pugin"
+}
+
