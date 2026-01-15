@@ -4,6 +4,7 @@ from typing import Dict
 
 CHARA_LANG: Dict[str, str] = {
     "mika": "Japanese",
+    "sagiri": "Japanese",
     "feibi": "Chinese",
     "thirtyseven": "English",
 }
@@ -13,6 +14,10 @@ CHARA_ALIAS_MAP: Dict[str, str] = {
     "淵坩隆雑": "mika",
     "隆雑": "mika",
     "みその みか": "mika",
+    "sagiri": "sagiri",
+    "izumi sagiri": "sagiri",
+    "和泉纱雾": "sagiri",
+    "和泉 紗霧": "sagiri",
     "feibi": "feibi",
     "憩曳": "feibi",
     "37": "thirtyseven",

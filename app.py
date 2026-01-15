@@ -30,6 +30,7 @@ import genie_tts as genie  # noqa: E402
 
 PREDEFINED_CHARACTERS: Dict[str, Dict[str, str]] = {
     "mika": {"label": "Mika (日语)"},
+    "sagiri": {"label": "Sagiri / 纱雾 (日语)"},
     "thirtyseven": {"label": "ThirtySeven / 37 (英语)"},
     "feibi": {"label": "Feibi (中文)"},
 }

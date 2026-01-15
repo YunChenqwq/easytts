@@ -28,6 +28,12 @@ GenieData/
 CharacterModels/
 models/
 
+# Exception: ship the default demo character `sagiri` with the repo
+!CharacterModels/
+!CharacterModels/v2ProPlus/
+!CharacterModels/v2ProPlus/sagiri/
+!CharacterModels/v2ProPlus/sagiri/**
+
 # Local caches / wheels
 .cache/
 _wheels/
