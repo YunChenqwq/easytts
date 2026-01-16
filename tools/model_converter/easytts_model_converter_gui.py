@@ -58,6 +58,168 @@ OPTIONAL_V2PP = [
     "prompt_encoder_fp32.onnx",
 ]
 
+def _find_local_genietts_repo() -> Optional[Path]:
+    """
+    Prefer a locally cloned Genie-TTS repo to avoid installing the full `genie-tts` package
+    (which may pull native deps on Windows, e.g. jieba_fast).
+    """
+    env_repo = os.environ.get("GENIETTS_REPO", "").strip().strip('"')
+    candidates: list[Path] = []
+    if env_repo:
+        candidates.append(Path(env_repo))
+
+    # Common layout: <MaiBotOneKey>/tools/model_converter/easytts_model_converter_gui.py
+    # with repo cloned at: <MaiBotOneKey>/tools/genietts/
+    here = Path(__file__).resolve()
+    candidates.append(here.parent.parent / "genietts")  # tools/genietts
+    candidates.append((here.parent / ".." / "genietts"))  # model_converter/../genietts
+    # Common layout in EasyTTS repo: <repo_root>/Genie-TTS-master/
+    candidates.append(here.parent.parent.parent / "Genie-TTS-master")
+    candidates.append(here.parent.parent.parent / "Genie-TTS")
+
+    for c in candidates:
+        try:
+            c = c.resolve()
+        except Exception:
+            pass
+        if (c / "src" / "genie_tts").is_dir():
+            return c
+    return None
+
+
+def _convert_with_local_genietts_repo(
+    *,
+    repo: Path,
+    torch_ckpt_path: str,
+    torch_pth_path: str,
+    output_dir: str,
+) -> None:
+    """
+    Run conversion using Genie-TTS repo source code without importing `genie_tts/__init__.py`.
+    This avoids heavy runtime dependencies (G2P / GenieData checks) that are irrelevant for conversion.
+    """
+    import importlib
+    import importlib.machinery
+    import sys
+    import types
+
+    repo_src = (repo / "src").resolve()
+    pkg_root = (repo_src / "genie_tts").resolve()
+    if not pkg_root.is_dir():
+        raise RuntimeError(f"Invalid Genie-TTS repo: missing src/genie_tts: {repo}")
+
+    # Create a minimal 'genie_tts' package in sys.modules WITHOUT executing its __init__.py.
+    if "genie_tts" not in sys.modules:
+        pkg = types.ModuleType("genie_tts")
+        pkg.__path__ = [str(pkg_root)]
+        pkg.__package__ = "genie_tts"
+        pkg.__spec__ = importlib.machinery.ModuleSpec("genie_tts", loader=None, is_package=True)
+        sys.modules["genie_tts"] = pkg
+    else:
+        pkg = sys.modules["genie_tts"]
+        if getattr(pkg, "__path__", None) is None:
+            pkg.__path__ = [str(pkg_root)]
+
+    # Import converters (no __init__ side effects now).
+    T2SModelConverter = importlib.import_module("genie_tts.Converter.v2.T2SConverter").T2SModelConverter
+    VITSConverter = importlib.import_module("genie_tts.Converter.v2.VITSConverter").VITSConverter
+    EncoderConverter = importlib.import_module("genie_tts.Converter.v2.EncoderConverter").EncoderConverter
+    PromptEncoderConverter = importlib.import_module(
+        "genie_tts.Converter.v2ProPlus.PromptEncoderConverter"
+    ).PromptEncoderConverter
+
+    # Resource files are stored in repo under src/genie_tts/Data/...
+    v2_models = pkg_root / "Data" / "v2" / "Models"
+    v2_keys = pkg_root / "Data" / "v2" / "Keys"
+    v2pp_models = pkg_root / "Data" / "v2ProPlus" / "Models"
+    v2pp_keys = pkg_root / "Data" / "v2ProPlus" / "Keys"
+
+    encoder_onnx_path = v2_models / "t2s_encoder_fp32.onnx"
+    stage_decoder_path = v2_models / "t2s_stage_decoder_fp32.onnx"
+    first_stage_decoder_path = v2_models / "t2s_first_stage_decoder_fp32.onnx"
+    t2s_keys_path = v2_keys / "t2s_onnx_keys.txt"
+
+    # V2 vs V2ProPlus: follow upstream heuristic (pth > 150MB => v2ProPlus).
+    is_v2pp = os.path.getsize(torch_pth_path) > 150 * 1024 * 1024
+
+    cache_dir = os.path.join(output_dir, "_cache")
+    os.makedirs(cache_dir, exist_ok=True)
+
+    if is_v2pp:
+        vits_onnx_path = v2pp_models / "vits_fp32.onnx"
+        vits_keys_path = v2pp_keys / "vits_weights.txt"
+        prompt_encoder_onnx_path = v2pp_models / "prompt_encoder_fp32.onnx"
+        prompt_encoder_keys_path = v2pp_keys / "prompt_encoder_weights.txt"
+
+        c1 = T2SModelConverter(
+            torch_ckpt_path=torch_ckpt_path,
+            stage_decoder_onnx_path=str(stage_decoder_path),
+            first_stage_decoder_onnx_path=str(first_stage_decoder_path),
+            key_list_file=str(t2s_keys_path),
+            output_dir=output_dir,
+            cache_dir=cache_dir,
+        )
+        c2 = VITSConverter(
+            torch_pth_path=torch_pth_path,
+            vits_onnx_path=str(vits_onnx_path),
+            key_list_file=str(vits_keys_path),
+            output_dir=output_dir,
+            cache_dir=cache_dir,
+        )
+        c3 = EncoderConverter(
+            ckpt_path=torch_ckpt_path,
+            pth_path=torch_pth_path,
+            onnx_input_path=str(encoder_onnx_path),
+            output_dir=output_dir,
+        )
+        c4 = PromptEncoderConverter(
+            torch_pth_path=torch_pth_path,
+            prompt_encoder_onnx_path=str(prompt_encoder_onnx_path),
+            key_list_file=str(prompt_encoder_keys_path),
+            output_dir=output_dir,
+            cache_dir=cache_dir,
+        )
+        c1.run_full_process()
+        c2.run_full_process()
+        c3.run_full_process()
+        c4.run_full_process()
+    else:
+        vits_onnx_path = v2_models / "vits_fp32.onnx"
+        vits_keys_path = v2_keys / "vits_onnx_keys.txt"
+
+        c1 = T2SModelConverter(
+            torch_ckpt_path=torch_ckpt_path,
+            stage_decoder_onnx_path=str(stage_decoder_path),
+            first_stage_decoder_onnx_path=str(first_stage_decoder_path),
+            key_list_file=str(t2s_keys_path),
+            output_dir=output_dir,
+            cache_dir=cache_dir,
+        )
+        c2 = VITSConverter(
+            torch_pth_path=torch_pth_path,
+            vits_onnx_path=str(vits_onnx_path),
+            key_list_file=str(vits_keys_path),
+            output_dir=output_dir,
+            cache_dir=cache_dir,
+        )
+        c3 = EncoderConverter(
+            ckpt_path=torch_ckpt_path,
+            pth_path=torch_pth_path,
+            onnx_input_path=str(encoder_onnx_path),
+            output_dir=output_dir,
+        )
+        c1.run_full_process()
+        c2.run_full_process()
+        c3.run_full_process()
+
+    # Best-effort cleanup.
+    try:
+        import shutil
+
+        shutil.rmtree(cache_dir, ignore_errors=True)
+    except Exception:
+        pass
+
 
 def _safe_model_name(name: str) -> str:
     n = (name or "").strip()
@@ -285,12 +447,7 @@ class App(tk.Tk):
             self._log(f"name: {args.model_name}")
             self._log(f"lang: {args.language}")
 
-            try:
-                import genie_tts as genie  # type: ignore
-            except Exception as e:
-                self._log("导入 genie_tts 失败。请先安装依赖：pip install genie-tts torch")
-                self._log(f"ImportError: {e}")
-                return
+            local_repo = _find_local_genietts_repo()
 
             model_dir = Path(args.output_root) / args.model_name
             tts_models_dir = model_dir / "tts_models"
@@ -307,18 +464,35 @@ class App(tk.Tk):
             _write_json(model_dir / "prompt_wav.json", {}, overwrite=args.overwrite_meta, log=self._log)
 
             # Convert -> tts_models/
-            self._log("调用 genie_tts.convert_to_onnx(...) 进行转换（可能需要较久）...")
-            try:
-                genie.convert_to_onnx(
-                    torch_pth_path=os.path.abspath(args.pth_path),
-                    torch_ckpt_path=os.path.abspath(args.ckpt_path),
-                    output_dir=os.path.abspath(str(tts_models_dir)),
-                )
-            except Exception as e:
-                self._log("转换失败（genie.convert_to_onnx 抛异常）：")
-                self._log(str(e))
-                self._log(traceback.format_exc())
-                return
+            if local_repo:
+                self._log(f"使用本地 Genie-TTS 仓库转换：{local_repo}")
+                try:
+                    _convert_with_local_genietts_repo(
+                        repo=local_repo,
+                        torch_pth_path=os.path.abspath(args.pth_path),
+                        torch_ckpt_path=os.path.abspath(args.ckpt_path),
+                        output_dir=os.path.abspath(str(tts_models_dir)),
+                    )
+                except Exception as e:
+                    self._log("转换失败（本地 Genie-TTS 转换器抛异常）：")
+                    self._log(str(e))
+                    self._log(traceback.format_exc())
+                    return
+            else:
+                self._log("未找到本地 Genie-TTS 仓库，尝试使用已安装的 genie-tts 包转换（Windows 不推荐）。")
+                try:
+                    import genie_tts as genie  # type: ignore
+
+                    genie.convert_to_onnx(
+                        torch_pth_path=os.path.abspath(args.pth_path),
+                        torch_ckpt_path=os.path.abspath(args.ckpt_path),
+                        output_dir=os.path.abspath(str(tts_models_dir)),
+                    )
+                except Exception as e:
+                    self._log("转换失败：genie-tts 包不可用或依赖不完整。建议使用 run_with_maibot_python.bat（会自动使用本地仓库代码）。")
+                    self._log(str(e))
+                    self._log(traceback.format_exc())
+                    return
 
             self._log("转换完成。开始校验输出...")
             ok, report = validate_model_pack_dir(str(model_dir))
@@ -326,7 +500,7 @@ class App(tk.Tk):
             if ok:
                 self._log("✅ 校验通过：模型包结构可用。")
             else:
-                self._log("⚠️ 校验未通过：缺少文件。请确认输入的 .pth/.ckpt 是否匹配 V2/V2ProPlus。")
+                self._log("[WARN] 校验未通过：缺少文件。请确认输入的 .pth/.ckpt 是否匹配 V2/V2ProPlus。")
         finally:
             self.after(0, lambda: self._run_btn.configure(state="normal"))
             self.after(0, lambda: self._validate_btn.configure(state="normal"))
@@ -359,29 +533,29 @@ def validate_model_pack_dir(model_dir: str) -> tuple[bool, str]:
 
     lines = [f"模型目录：{p}", f"tts_models：{tts}"]
     if not missing_base:
-        lines.append("Base 文件：✅ 完整")
+        lines.append("Base 文件：[OK] 完整")
     else:
-        lines.append("Base 文件：❌ 缺失")
+        lines.append("Base 文件：[MISSING] 缺失")
         lines.extend([f"  - {x}" for x in missing_base])
 
     if (p / "easytts_pack.json").exists() or (p / "_easytts_meta.json").exists():
-        lines.append("Meta 文件：✅ 已生成")
+        lines.append("Meta 文件：[OK] 已生成")
     else:
-        lines.append("Meta 文件：⚠️ 未检测到（建议生成 easytts_pack.json / _easytts_meta.json）")
+        lines.append("Meta 文件：[WARN] 未检测到（建议生成 easytts_pack.json / _easytts_meta.json）")
 
     if (p / "prompt_wav").exists():
-        lines.append("prompt_wav/：✅ 存在（可后续放参考音频）")
+        lines.append("prompt_wav/：[OK] 存在（可后续放参考音频）")
     else:
-        lines.append("prompt_wav/：⚠️ 不存在")
+        lines.append("prompt_wav/：[WARN] 不存在")
 
     if (p / "prompt_wav.json").exists():
-        lines.append("prompt_wav.json：✅ 存在")
+        lines.append("prompt_wav.json：[OK] 存在")
     else:
-        lines.append("prompt_wav.json：⚠️ 不存在（可后续生成/填写）")
+        lines.append("prompt_wav.json：[WARN] 不存在（可后续生成/填写）")
 
     # v2pp is optional, but show hint
     if not missing_v2pp:
-        lines.append("v2ProPlus 附加文件：✅ 检测到（看起来是 v2ProPlus）")
+        lines.append("v2ProPlus 附加文件：[OK] 检测到（看起来是 v2ProPlus）")
     else:
         lines.append("v2ProPlus 附加文件：未检测到（如果你的模型是 v2ProPlus，需要这两项）")
         lines.extend([f"  - {x}" for x in missing_v2pp])
@@ -400,4 +574,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
