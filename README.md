@@ -31,7 +31,7 @@ easytts 是一个基于 **Genie-TTS / genie-tts（GPT-SoVITS ONNX 推理引擎�
 easytts 是一个基于 **Genie-TTS / genie-tts（GPT-SoVITS ONNX 推理引擎）** 的 WebUI，用于在浏览器里进行文本转语音（TTS），并支持：
 
 - 预设角色：自动从 Hugging Face 下载资源和角色模型，开箱即用
-- 自定义模型：上传你自己的 **Genie-TTS ONNX 模型 zip**，再上传参考音频做情绪/语调克隆
+- 自定义模型（推荐）：作为仓库所有者，把转换后的模型目录直接放进你的仓库（`models/<角色名>/...`），WebUI 启动后会自动识别并在“已导入模型”中可选
 
 > 注意：本项目与上游依赖均有各自的开源协议要求；部署/二次分发请务必遵守（查看各项目 `LICENSE`）。
 
@@ -55,7 +55,7 @@ easytts 会自动下载：
 ## 2.1 参考音频是不是必须？
 
 - **预设角色：不需要你手动上传参考音频**。因为每个预设角色自带了内置参考音频（情绪/风格），WebUI 默认直接使用它来合成（你也可以切换为“上传参考音频”来做更强的情绪/语调克隆）。
-- **自定义模型：需要参考音频 + 对应文本**。当前版本的推理流程依赖参考音频来提取说话人/风格信息，如果不提供，库会拒绝合成。
+- **自定义模型：需要参考音频 + 对应文本**（可以“上传参考音频”，也可以使用你在模型目录里提供的 `prompt_wav/` 内置参考）。当前版本的推理流程依赖参考音频来提取说话人/风格信息，如果不提供，库会拒绝合成。
 
 ### A) 预设角色
 
@@ -68,15 +68,19 @@ easytts 会自动下载：
 
 ### B) 自定义模型
 
-自定义模型需要你先把模型准备成 **zip** 并在 WebUI 里加载。
+自定义模型推荐由“仓库所有者”离线转换后，直接提交到自己的魔搭（ModelScope）仓库中，让 WebUI 自动识别加载。
 
-#### 1) 上传并加载 ONNX 模型
+#### 1) 推荐方式：用转换工具生成模型目录，然后上传到你的魔搭仓库
 
-1) 填写“模型名称”（会作为 WebUI 里的角色名使用）  
-2) 选择“模型语言”（`zh/en/jp/hybrid`）  
-3) 上传你的 **ONNX 模型 zip**，点击“上传并加载模型”  
-   - （可选）如果你希望**不再单独上传参考音频**，也可以把参考音频与 `prompt_wav.json` 一起打包进 zip（见下文“把参考音频一起打包”）
-4) “加载状态”显示成功后，进入下一步
+1) 打开本仓库自带的转换工具：`tools/model_converter/easytts_model_converter_gui.py`  
+2) 选择输入（通常是 GPT-SoVITS 的 `.pth` + `.ckpt`），填写模型名与语言，开始转换  
+3) 输出根目录请选择你的 easytts 仓库里的 `models/`，工具会生成如下结构：  
+   - `models/<角色名>/tts_models/`：ONNX/.bin（推理必需文件）  
+   - `models/<角色名>/prompt_wav/`：参考音频（可选）  
+   - `models/<角色名>/prompt_wav.json`：参考音频映射（可选）  
+   - `models/<角色名>/(easytts_pack.json/_easytts_meta.json)`：元信息（建议保留）  
+4) 把整个 `models/<角色名>/` 文件夹提交并推送到你自己的魔搭仓库  
+5) 重启 / 刷新 WebUI，在“自定义模型”页签的“已导入模型”里选择该角色即可使用
 
 #### 2) 上传参考音频（必须）
 
@@ -85,33 +89,35 @@ easytts 会自动下载：
 
 支持的参考音频格式：`wav / flac / ogg / aiff / aif`
 
-#### 2.1 把参考音频一起打包（可选，推荐）
+#### 2.1 让模型自带“情绪/风格”下拉框（可选，推荐）
 
-你也可以把参考音频与文本直接放进模型 zip，让 WebUI 自动解析并在界面提供“内置参考（情绪/风格）”下拉框：
+你可以把参考音频与文本放进 `models/<角色名>/prompt_wav/`，让 WebUI 自动解析并在界面提供“内置参考（情绪/风格）”下拉框：
 
-- 在 zip 中放一个 `prompt_wav.json`
-- 并放一个 `prompt_wav/` 文件夹，里面是 `prompt_wav.json` 里 `wav` 字段对应的音频文件
+- 方式 A：提供 `prompt_wav.json` + `prompt_wav/`（最稳定）
+- 方式 B：只提供 `prompt_wav/`，并按约定放置：`<预设名>.<音频扩展名>` + `<预设名>.txt`（WebUI 会自动生成 `prompt_wav.json`）
 
-示例结构：
+示例结构（方式 B）：
 
-- `your_model.zip`
-  - `t2s_encoder_fp32.onnx` / `...`
-  - `vits_fp32.onnx` / `...`
-  - `prompt_wav.json`
+- `models/<角色名>/`
+  - `tts_models/`
   - `prompt_wav/`
-    - `Normal.wav`
-    - `Sad.ogg`
+    - `普通.wav`
+    - `普通.txt`
+    - `伤心.ogg`
+    - `伤心.txt`
 
-上传并加载成功后，在“参考音频”处选择“使用压缩包内置参考（情绪/风格）”即可，无需再单独上传参考音频。
+配置完成后，在“参考音频”处选择“使用内置参考（情绪/风格）”即可，无需再单独上传参考音频。
 
 #### 3) 合成
 
 1) 输入要合成的“文本”  
 2) 点击“生成语音”得到输出
 
-## 3. ONNX 模型 zip 需要包含什么
+#### 4) 旧方式（兼容）：WebUI 上传 zip
 
-zip 内应包含 Genie-TTS 需要的 ONNX 文件（通常在同一目录下）。常见必需文件包括：
+仍然兼容“上传 zip 并解压导入”的方式，但不再推荐（对大型模型/频繁更新不友好，且更难管理版本）。
+
+如果你仍要使用 zip，zip 内应包含 Genie-TTS 需要的 ONNX 文件（通常在同一目录下）。常见必需文件包括：
 
 - `t2s_encoder_fp32.bin`
 - `t2s_encoder_fp32.onnx`
@@ -207,4 +213,6 @@ res = tts.tts_upload(
 EasyTTS.save(res, "local_upload.wav")
 ```
 
-\n\n## MaiBot 插件\n- EasyttsPlugin（独立仓库）：https://github.com/YunChenqwq/EasyttsPlugin\n
+## MaiBot 插件
+
+- EasyttsPlugin（独立仓库）：`https://github.com/YunChenqwq/EasyttsPlugin`
