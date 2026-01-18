@@ -342,6 +342,7 @@ def build_demo() -> gr.Blocks:
     loaded: Set[str] = set()
     default_version = os.getenv("GENIE_CHARACTER_VERSION", "v2ProPlus")
     custom_loaded: Dict[str, str] = {}
+    custom_model_dirs: Dict[str, str] = {}
     custom_prompts: Dict[str, Dict[str, Any]] = {}
     custom_prompt_dirs: Dict[str, str] = {}
     custom_languages: Dict[str, str] = {}
@@ -357,7 +358,7 @@ def build_demo() -> gr.Blocks:
         v2_root = _character_models_version_dir("V2")
         os.makedirs(v2_root, exist_ok=True)
 
-        # Load all models from CharacterModels/V2/<name>/
+        # Index all models from CharacterModels/V2/<name>/ (load on-demand)
         try:
             for p in Path(v2_root).iterdir():
                 if not p.is_dir():
@@ -371,16 +372,12 @@ def build_demo() -> gr.Blocks:
                 meta = _load_meta(str(p))
                 language = str(meta.get("language") or "zh")
 
-                # If no meta exists, still try to load with default language.
-                onnx_dir = _pick_onnx_model_dir(str(p))
                 try:
-                    genie.load_character(
-                        character_name=model_name,
-                        onnx_model_dir=onnx_dir,
-                        language=language,
-                    )
+                    # If no meta exists, still try to locate ONNX dir and keep default language.
+                    onnx_dir = _pick_onnx_model_dir(str(p))
                     custom_loaded[model_name] = onnx_dir
                     custom_languages[model_name] = language
+                    custom_model_dirs[model_name] = str(p)
                     _save_meta(str(p), model_name=model_name, language=language)
                 except Exception as e:
                     logs.append(f"加载模型失败：{model_name} ({e})")
@@ -390,9 +387,9 @@ def build_demo() -> gr.Blocks:
                 if prompt_data and prompt_dir:
                     custom_prompts[model_name] = prompt_data
                     custom_prompt_dirs[model_name] = prompt_dir
-                    logs.append(f"加载模型：{model_name}（{prompt_msg}）")
+                    logs.append(f"发现角色：{model_name}（{prompt_msg}）")
                 else:
-                    logs.append(f"加载模型：{model_name}（{prompt_msg}）")
+                    logs.append(f"发现角色：{model_name}（{prompt_msg}）")
         except Exception as e:
             logs.append(f"扫描 CharacterModels/V2 失败：{e}")
 
@@ -403,13 +400,25 @@ def build_demo() -> gr.Blocks:
     auto_discover_log = _auto_discover_models()
 
     def ensure_character_loaded(character: str) -> None:
-        if character in loaded:
+        name = (character or "").strip()
+        if name in loaded:
             return
-        genie.load_predefined_character(character)
-        loaded.add(character)
+        if name in custom_loaded:
+            genie.load_character(
+                character_name=name,
+                onnx_model_dir=custom_loaded[name],
+                language=custom_languages.get(name, "zh"),
+            )
+            loaded.add(name)
+            return
+        genie.load_predefined_character(name)
+        loaded.add(name)
 
     def _character_dir(character: str) -> str:
-        return os.path.join(os.getcwd(), "CharacterModels", default_version, character)
+        name = (character or "").strip()
+        if name in custom_model_dirs:
+            return custom_model_dirs[name]
+        return os.path.join(os.getcwd(), "CharacterModels", default_version, name)
 
     def _prompt_wav_json_path(character: str) -> str:
         return os.path.join(_character_dir(character), "prompt_wav.json")
@@ -711,11 +720,18 @@ def build_demo() -> gr.Blocks:
 
         with gr.Tabs():
             with gr.Tab("预设角色"):
+                gr.Markdown(
+                    "提示：如果你想使用自己的 V2 模型，请在魔搭社区仓库页面把文件上传到：`CharacterModels/V2/<角色名>/`，"
+                    "然后重启 Space/刷新页面。WebUI 会自动识别并加入下拉列表。"
+                )
+
                 with gr.Row():
+                    v2_choices = [(f"{name} (V2)", name) for name in sorted(custom_loaded.keys())]
+                    all_choices = [(v["label"], k) for k, v in PREDEFINED_CHARACTERS.items()] + v2_choices
                     character = gr.Dropdown(
-                        choices=[(v["label"], k) for k, v in PREDEFINED_CHARACTERS.items()],
+                        choices=all_choices,
                         value="mika",
-                        label="角色 (Predefined Character)",
+                        label="角色",
                     )
                     split_sentence = gr.Checkbox(value=True, label="自动分句 (split_sentence)")
 
@@ -781,140 +797,6 @@ def build_demo() -> gr.Blocks:
                     fn=synthesize,
                     inputs=[character, text, split_sentence, ref_mode, preset_name, ref_audio, ref_text],
                     outputs=[audio, file],
-                    concurrency_limit=1,
-                )
-
-            with gr.Tab("上传角色模型（V2）"):
-                gr.Markdown(
-                    "### 使用方式（推荐）\n"
-                    "- 本 WebUI **不再提供 zip 上传入口**。\n"
-                    "- 请直接使用魔搭社区（ModelScope Studio）仓库页面的“上传文件”功能，把模型文件上传到：`CharacterModels/V2/<角色名>/`。\n"
-                    "- 目录里需要包含 `tts_models/`（以及可选的 `prompt_wav.json` + `prompt_wav/`）。\n"
-                    "- 上传完成后，重启 Space/刷新页面即可在下方列表中看到并使用。\n"
-                    "\n"
-                    "提示\n"
-                    "- 支持的参考音频格式：wav/ogg/flac/mp3/aiff/aif。\n"
-                    "- 如果你只上传了 `prompt_wav/`（或 `emotion/`）并为每个音频提供同名 `.txt` 文本，本 WebUI 会自动生成 `prompt_wav.json`。"
-                )
-
-                gr.Markdown("### 已上传/已缓存的角色（来自 CharacterModels/V2）")
-                auto_log = gr.Textbox(value=auto_discover_log, label="自动扫描日志（只读）", lines=6, interactive=False)
-                existing_models = gr.Dropdown(
-                    choices=sorted(custom_loaded.keys()),
-                    value=None,
-                    label="选择一个角色",
-                )
-                use_existing_btn = gr.Button("使用该模型", variant="secondary")
-
-                # Keep the legacy upload controls hidden to avoid breaking older clients/configs,
-                # but do not expose them in the UI (ModelScope repo upload is recommended).
-                with gr.Group(visible=False):
-                    with gr.Row():
-                        custom_name = gr.Textbox(value="custom", label="模型名称（也会作为角色名）")
-                        custom_lang = gr.Dropdown(
-                            choices=[
-                                ("中文 (zh)", "zh"),
-                                ("英文 (en)", "en"),
-                                ("日语 (jp)", "jp"),
-                                ("中英混合 (hybrid)", "hybrid"),
-                            ],
-                            value="zh",
-                            label="模型语言",
-                        )
-                    custom_zip = gr.File(label="ONNX 模型压缩包（zip）", file_types=[".zip"])
-                    load_btn = gr.Button("上传并加载模型（保存到 CharacterModels/V2）", variant="primary")
-                    load_status = gr.Textbox(label="加载状态", lines=3, interactive=False)
-
-                gr.Markdown("### 参考音频")
-                custom_ref_mode = gr.Radio(
-                    choices=[("使用压缩包内置参考（情绪/风格）", "preset"), ("上传参考音频（情绪/语调克隆）", "upload")],
-                    value="upload",
-                    label="参考音频",
-                )
-
-                custom_preset_group = gr.Group(visible=False)
-                with custom_preset_group:
-                    custom_preset = gr.Dropdown(choices=["Normal"], value="Normal", label="内置参考（情绪/风格）")
-                    custom_preset_text = gr.Textbox(label="内置参考文本（只读）", lines=2, interactive=False)
-
-                custom_upload_group = gr.Group(visible=True)
-                with custom_upload_group:
-                    custom_ref_audio = gr.Audio(
-                        label="上传参考音频（建议 3~10 秒，干净的人声）",
-                        sources=["upload"],
-                        type="filepath",
-                        format="wav",
-                    )
-                    custom_ref_text = gr.Textbox(
-                        label="参考音频对应文本",
-                        lines=2,
-                        placeholder="填写你上传的参考音频里说的内容（与音频内容一致）。",
-                    )
-
-                custom_text = gr.Textbox(label="文本", lines=4)
-                custom_split = gr.Checkbox(value=True, label="自动分句 (split_sentence)")
-
-                with gr.Row():
-                    custom_btn = gr.Button("生成语音", variant="primary")
-                    custom_audio = gr.Audio(label="输出音频", type="filepath", autoplay=False)
-                    custom_file = gr.File(label="下载 WAV")
-
-                use_existing_btn.click(
-                    fn=select_existing_model,
-                    inputs=[existing_models],
-                    outputs=[
-                        custom_name,
-                        custom_lang,
-                        load_status,
-                        custom_ref_mode,
-                        custom_preset,
-                        custom_preset_text,
-                        custom_preset_group,
-                        custom_upload_group,
-                    ],
-                    concurrency_limit=1,
-                )
-
-                load_btn.click(
-                    fn=load_custom_model,
-                    inputs=[custom_name, custom_lang, custom_zip],
-                    outputs=[load_status, existing_models, custom_name],
-                    concurrency_limit=1,
-                )
-                load_btn.click(
-                    fn=custom_update_after_load,
-                    inputs=[custom_name],
-                    outputs=[
-                        custom_ref_mode,
-                        custom_preset,
-                        custom_preset_text,
-                        custom_preset_group,
-                        custom_upload_group,
-                    ],
-                    concurrency_limit=1,
-                )
-                custom_ref_mode.change(
-                    fn=custom_update_ref_mode_ui,
-                    inputs=[custom_ref_mode],
-                    outputs=[custom_preset_group, custom_upload_group],
-                )
-                custom_preset.change(
-                    fn=custom_update_preset_text,
-                    inputs=[custom_name, custom_preset],
-                    outputs=[custom_preset_text],
-                )
-                custom_btn.click(
-                    fn=synthesize_custom,
-                    inputs=[
-                        custom_name,
-                        custom_text,
-                        custom_split,
-                        custom_ref_mode,
-                        custom_preset,
-                        custom_ref_audio,
-                        custom_ref_text,
-                    ],
-                    outputs=[custom_audio, custom_file],
                     concurrency_limit=1,
                 )
 
