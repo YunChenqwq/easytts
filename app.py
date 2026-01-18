@@ -351,7 +351,7 @@ def build_demo() -> gr.Blocks:
         Auto load user-uploaded V2 models that already exist on server:
         - CharacterModels/V2/<name>/
 
-        Users can upload a zip via WebUI and it will be extracted into this folder.
+        Users upload files via ModelScope Studio's repository file upload UI.
         """
         logs: list[str] = []
         v2_root = _character_models_version_dir("V2")
@@ -397,7 +397,7 @@ def build_demo() -> gr.Blocks:
             logs.append(f"扫描 CharacterModels/V2 失败：{e}")
 
         if not logs:
-            return "未发现任何可自动加载的 V2 模型（可在本页上传 zip，解压到 CharacterModels/V2/ 后会自动出现）。"
+            return "未发现任何可自动加载的 V2 模型（请在仓库里上传到 CharacterModels/V2/<角色名>/，然后重启/刷新 WebUI）。"
         return "\n".join(logs)
 
     auto_discover_log = _auto_discover_models()
@@ -786,14 +786,15 @@ def build_demo() -> gr.Blocks:
 
             with gr.Tab("上传角色模型（V2）"):
                 gr.Markdown(
-                    "### 上传并加载 ONNX 模型（V2）\n"
-                    "- 上传一个 `zip` 压缩包，WebUI 会解压到 `CharacterModels/V2/<角色名>/` 并自动加载（无需手动进服务器放文件）。\n"
-                    "- 提示：建议启用 Spaces 的 Persistent Storage，这样模型解压后可长期缓存到 `/data`。\n"
-                    "- 建议在 zip 里额外放一个 `easytts_pack.json`（或 `_easytts_meta.json` / `meta.json`），用于声明 `language`（zh/en/jp/hybrid）与可选的 `model_name`。\n"
-                    "- zip 外面多包了一层目录也可以，WebUI 会自动找到 `tts_models/`。\n"
-                    "- 可选：zip 里也可以同时放 `prompt_wav.json` + `prompt_wav/`（内置参考音频与文本），WebUI 会自动解析并在下方提供情绪/风格下拉选择。\n"
-                    "- 新增：如果 zip 里只有 `prompt_wav/`（或 `emotion/`）且每个音频旁边有同名 `.txt` 参考文本，WebUI 会自动生成 `prompt_wav.json`，并把音频当作内置参考。\n"
-                    "- 加载成功后即可直接合成；也可选择“上传参考音频”进行语调/情绪克隆。"
+                    "### 使用方式（推荐）\n"
+                    "- 本 WebUI **不再提供 zip 上传入口**。\n"
+                    "- 请直接使用魔搭社区（ModelScope Studio）仓库页面的“上传文件”功能，把模型文件上传到：`CharacterModels/V2/<角色名>/`。\n"
+                    "- 目录里需要包含 `tts_models/`（以及可选的 `prompt_wav.json` + `prompt_wav/`）。\n"
+                    "- 上传完成后，重启 Space/刷新页面即可在下方列表中看到并使用。\n"
+                    "\n"
+                    "提示\n"
+                    "- 支持的参考音频格式：wav/ogg/flac/mp3/aiff/aif。\n"
+                    "- 如果你只上传了 `prompt_wav/`（或 `emotion/`）并为每个音频提供同名 `.txt` 文本，本 WebUI 会自动生成 `prompt_wav.json`。"
                 )
 
                 gr.Markdown("### 已上传/已缓存的角色（来自 CharacterModels/V2）")
@@ -805,21 +806,24 @@ def build_demo() -> gr.Blocks:
                 )
                 use_existing_btn = gr.Button("使用该模型", variant="secondary")
 
-                with gr.Row():
-                    custom_name = gr.Textbox(value="custom", label="模型名称（也会作为角色名）")
-                    custom_lang = gr.Dropdown(
-                        choices=[
-                            ("中文 (zh)", "zh"),
-                            ("英文 (en)", "en"),
-                            ("日语 (jp)", "jp"),
-                            ("中英混合 (hybrid)", "hybrid"),
-                        ],
-                        value="zh",
-                        label="模型语言",
-                    )
-                custom_zip = gr.File(label="ONNX 模型压缩包（zip）", file_types=[".zip"])
-                load_btn = gr.Button("上传并加载模型（保存到 CharacterModels/V2）", variant="primary")
-                load_status = gr.Textbox(label="加载状态", lines=3, interactive=False)
+                # Keep the legacy upload controls hidden to avoid breaking older clients/configs,
+                # but do not expose them in the UI (ModelScope repo upload is recommended).
+                with gr.Group(visible=False):
+                    with gr.Row():
+                        custom_name = gr.Textbox(value="custom", label="模型名称（也会作为角色名）")
+                        custom_lang = gr.Dropdown(
+                            choices=[
+                                ("中文 (zh)", "zh"),
+                                ("英文 (en)", "en"),
+                                ("日语 (jp)", "jp"),
+                                ("中英混合 (hybrid)", "hybrid"),
+                            ],
+                            value="zh",
+                            label="模型语言",
+                        )
+                    custom_zip = gr.File(label="ONNX 模型压缩包（zip）", file_types=[".zip"])
+                    load_btn = gr.Button("上传并加载模型（保存到 CharacterModels/V2）", variant="primary")
+                    load_status = gr.Textbox(label="加载状态", lines=3, interactive=False)
 
                 gr.Markdown("### 参考音频")
                 custom_ref_mode = gr.Radio(
