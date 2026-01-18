@@ -47,6 +47,29 @@ def _model_root_dir() -> str:
     return os.path.join(os.getcwd(), "models")
 
 
+def _character_models_root_dir() -> str:
+    """
+    Where CharacterModels/ lives.
+
+    On ModelScope/HF spaces, `/data` is usually persistent (if enabled), so prefer it.
+    """
+    if os.path.isdir("/data"):
+        return os.path.join("/data", "CharacterModels")
+    return os.path.join(os.getcwd(), "CharacterModels")
+
+
+def _character_models_version_dir(version: str = "V2") -> str:
+    # Be tolerant to casing (users may create V2 or v2).
+    root = _character_models_root_dir()
+    candidates = [version, version.lower(), version.upper()]
+    for v in candidates:
+        p = os.path.join(root, v)
+        if os.path.isdir(p):
+            return p
+    # Default create path (prefer the provided version string).
+    return os.path.join(root, version)
+
+
 def _model_packs_dirs() -> list[str]:
     """
     Model pack zip directories (repo owners can upload zips here).
@@ -325,75 +348,18 @@ def build_demo() -> gr.Blocks:
 
     def _auto_discover_models() -> str:
         """
-        Auto load models that already exist on server:
-        - ModelPacks/*.zip (repo owner uploads zips to this folder)
-        - models/<name>/ (previously extracted models, including those uploaded via WebUI)
+        Auto load user-uploaded V2 models that already exist on server:
+        - CharacterModels/V2/<name>/
+
+        Users can upload a zip via WebUI and it will be extracted into this folder.
         """
         logs: list[str] = []
-        root = _model_root_dir()
-        os.makedirs(root, exist_ok=True)
+        v2_root = _character_models_version_dir("V2")
+        os.makedirs(v2_root, exist_ok=True)
 
-        # Ensure ModelPacks folders exist
-        for d in _model_packs_dirs():
-            os.makedirs(d, exist_ok=True)
-
-        # 1) Import zips from ModelPacks
-        pack_zips: list[str] = []
-        for d in _model_packs_dirs():
-            try:
-                for p in Path(d).glob("*.zip"):
-                    if p.is_file():
-                        pack_zips.append(str(p))
-            except Exception:
-                continue
-
-        state_path = os.path.join(root, "_modelpacks_state.json")
-        state: Dict[str, Any] = {}
+        # Load all models from CharacterModels/V2/<name>/
         try:
-            if os.path.exists(state_path):
-                state = _read_json(state_path)
-        except Exception:
-            state = {}
-
-        changed = False
-
-        for zip_path in sorted(set(pack_zips)):
-            try:
-                meta_in_zip = _read_pack_meta_from_zip(zip_path)
-                st = os.stat(zip_path)
-                key = os.path.abspath(zip_path)
-                sig = {"mtime": int(st.st_mtime), "size": int(st.st_size)}
-                name_guess = _safe_name(str(meta_in_zip.get("model_name") or meta_in_zip.get("name") or Path(zip_path).stem))
-                language = str(meta_in_zip.get("language") or "zh")
-                dest = os.path.join(root, name_guess)
-
-                prev = state.get(key) if isinstance(state, dict) else None
-                need_extract = True
-                if isinstance(prev, dict) and prev.get("sig") == sig and os.path.isdir(dest):
-                    need_extract = False
-
-                if need_extract:
-                    if os.path.exists(dest):
-                        shutil.rmtree(dest, ignore_errors=True)
-                    _safe_extract_zip(zip_path, dest)
-                    _save_meta(dest, model_name=name_guess, language=language)
-                    state[key] = {"sig": sig, "model_name": name_guess, "language": language}
-                    changed = True
-                    logs.append(f"已导入模型包：{Path(zip_path).name} -> {name_guess}")
-                else:
-                    logs.append(f"模型包未变化，跳过解压：{Path(zip_path).name}")
-            except Exception as e:
-                logs.append(f"导入模型包失败：{zip_path} ({e})")
-
-        if changed:
-            try:
-                _write_json(state_path, state)
-            except Exception:
-                pass
-
-        # 2) Load all models from models/<name>/
-        try:
-            for p in Path(root).iterdir():
+            for p in Path(v2_root).iterdir():
                 if not p.is_dir():
                     continue
                 if p.name.startswith("_"):
@@ -428,10 +394,10 @@ def build_demo() -> gr.Blocks:
                 else:
                     logs.append(f"加载模型：{model_name}（{prompt_msg}）")
         except Exception as e:
-            logs.append(f"扫描 models/ 失败：{e}")
+            logs.append(f"扫描 CharacterModels/V2 失败：{e}")
 
         if not logs:
-            return "未发现任何可自动加载的模型（可把 zip 放到 ModelPacks/，或通过 WebUI 上传 zip 解压到 models/）。"
+            return "未发现任何可自动加载的 V2 模型（可在本页上传 zip，解压到 CharacterModels/V2/ 后会自动出现）。"
         return "\n".join(logs)
 
     auto_discover_log = _auto_discover_models()
@@ -541,7 +507,7 @@ def build_demo() -> gr.Blocks:
         )
         return out_path, out_path
 
-    def load_custom_model(model_name: str, language: str, model_zip_path: str) -> str:
+    def load_custom_model(model_name: str, language: str, model_zip_path: str):
         model_name = _safe_name(model_name)
         if not model_name:
             raise gr.Error("请填写模型名称（用于在本 WebUI 中区分角色）。")
@@ -558,8 +524,10 @@ def build_demo() -> gr.Blocks:
         if not zip_path or not os.path.exists(zip_path):
             raise gr.Error("请上传 ONNX 模型压缩包（zip）。")
 
-        root = _model_root_dir()
-        dest = os.path.join(root, model_name)
+        # Store in CharacterModels/V2 so it behaves like a built-in character directory.
+        v2_root = _character_models_version_dir("V2")
+        os.makedirs(v2_root, exist_ok=True)
+        dest = os.path.join(v2_root, model_name)
         if os.path.exists(dest):
             shutil.rmtree(dest, ignore_errors=True)
         _safe_extract_zip(zip_path, dest)
@@ -584,7 +552,13 @@ def build_demo() -> gr.Blocks:
             suffix = f"\n{prompt_msg}（可在下方选择情绪/风格，无需再单独上传参考音频）"
         else:
             suffix = f"\n{prompt_msg}"
-        return f"已加载自定义模型：{model_name}\n模型目录：{onnx_dir}{suffix}"
+        status = f"已加载自定义模型：{model_name}\n模型目录：{onnx_dir}{suffix}"
+        # Also refresh the dropdown list so users can pick it immediately.
+        return (
+            status,
+            gr.Dropdown(choices=sorted(custom_loaded.keys()), value=model_name),
+            model_name,
+        )
 
     def synthesize_custom(
         model_name: str,
@@ -810,24 +784,24 @@ def build_demo() -> gr.Blocks:
                     concurrency_limit=1,
                 )
 
-            with gr.Tab("自定义模型"):
+            with gr.Tab("上传角色模型（V2）"):
                 gr.Markdown(
-                    "### 上传并加载 ONNX 模型\n"
-                    "- 仓库所有者可以把模型 zip 上传到 `ModelPacks/`（或 `/data/ModelPacks/`），WebUI 启动时会自动解压到 `models/` 并加载（可在下方直接选择使用）。\n"
+                    "### 上传并加载 ONNX 模型（V2）\n"
+                    "- 上传一个 `zip` 压缩包，WebUI 会解压到 `CharacterModels/V2/<角色名>/` 并自动加载（无需手动进服务器放文件）。\n"
+                    "- 提示：建议启用 Spaces 的 Persistent Storage，这样模型解压后可长期缓存到 `/data`。\n"
                     "- 建议在 zip 里额外放一个 `easytts_pack.json`（或 `_easytts_meta.json` / `meta.json`），用于声明 `language`（zh/en/jp/hybrid）与可选的 `model_name`。\n"
-                    "- 需要上传一个 `zip` 压缩包，里面是 Genie-TTS 需要的 ONNX 模型文件（若 zip 外面多包了一层目录也可以）。\n"
+                    "- zip 外面多包了一层目录也可以，WebUI 会自动找到 `tts_models/`。\n"
                     "- 可选：zip 里也可以同时放 `prompt_wav.json` + `prompt_wav/`（内置参考音频与文本），WebUI 会自动解析并在下方提供情绪/风格下拉选择。\n"
                     "- 新增：如果 zip 里只有 `prompt_wav/`（或 `emotion/`）且每个音频旁边有同名 `.txt` 参考文本，WebUI 会自动生成 `prompt_wav.json`，并把音频当作内置参考。\n"
-                    "- 加载成功后，再上传参考音频+文本即可合成。\n"
-                    "- 提示：建议启用 Spaces 的 Persistent Storage，这样模型解压后可长期缓存到 `/data`。"
+                    "- 加载成功后即可直接合成；也可选择“上传参考音频”进行语调/情绪克隆。"
                 )
 
-                gr.Markdown("### 已内置/已缓存的模型（无需再次上传 zip）")
+                gr.Markdown("### 已上传/已缓存的角色（来自 CharacterModels/V2）")
                 auto_log = gr.Textbox(value=auto_discover_log, label="自动扫描日志（只读）", lines=6, interactive=False)
                 existing_models = gr.Dropdown(
                     choices=sorted(custom_loaded.keys()),
                     value=None,
-                    label="选择一个模型",
+                    label="选择一个角色",
                 )
                 use_existing_btn = gr.Button("使用该模型", variant="secondary")
 
@@ -844,7 +818,7 @@ def build_demo() -> gr.Blocks:
                         label="模型语言",
                     )
                 custom_zip = gr.File(label="ONNX 模型压缩包（zip）", file_types=[".zip"])
-                load_btn = gr.Button("上传并加载模型", variant="primary")
+                load_btn = gr.Button("上传并加载模型（保存到 CharacterModels/V2）", variant="primary")
                 load_status = gr.Textbox(label="加载状态", lines=3, interactive=False)
 
                 gr.Markdown("### 参考音频")
@@ -900,7 +874,7 @@ def build_demo() -> gr.Blocks:
                 load_btn.click(
                     fn=load_custom_model,
                     inputs=[custom_name, custom_lang, custom_zip],
-                    outputs=[load_status],
+                    outputs=[load_status, existing_models, custom_name],
                     concurrency_limit=1,
                 )
                 load_btn.click(
