@@ -9,7 +9,7 @@ Usage:
 then fall back to environment variables.
 """
 
-# Base URL of your deployed Gradio app (ModelScope / HuggingFace, etc.)
+# Base URL of your deployed Gradio app (ModelScope / ms.show, etc.)
 EASYTTS_BASE_URL = "https://yunchenqwq-easytts.ms.show"
 
 # Treat as secret. Never commit this to git.

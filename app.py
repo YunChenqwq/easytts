@@ -13,7 +13,7 @@ _SUPPORTED_PROMPT_AUDIO_EXTS = (".wav", ".ogg", ".flac", ".mp3", ".aiff", ".aif"
 
 
 def _default_genie_data_dir() -> str:
-    # Hugging Face Spaces persistent storage (if enabled) is usually mounted at /data
+    # ModelScope/Spaces-style persistent storage (if enabled) is usually mounted at /data
     if os.path.isdir("/data"):
         return os.path.join("/data", "GenieData")
     return os.path.join(os.getcwd(), "GenieData")
@@ -714,7 +714,7 @@ def build_demo() -> gr.Blocks:
             "- easytts 地址：https://github.com/yunchenqwq/easytts\n"
             "- Genie-TTS 原项目：https://github.com/High-Logic/Genie-TTS\n"
             "- 本项目基于 Genie-TTS / genie-tts 使用，部署与二次分发请务必遵守对应开源协议（见各项目 `LICENSE`）。\n"
-            "- 首次使用某个角色时会自动从 Hugging Face 下载模型与资源（可能需要几十秒到数分钟）。\n"
+            "- 首次使用某个角色时可能需要自动下载模型与资源（可能需要几十秒到数分钟；若环境无法联网，请改用仓库内置资源/自己上传模型）。\n"
             "- 本 WebUI 仅做推理演示，默认不播放音频，只生成并提供下载。"
         )
 
