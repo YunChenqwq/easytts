@@ -19,6 +19,9 @@ easytts 是一个基于 **Genie-TTS / genie-tts（GPT-SoVITS ONNX 推理引擎�
   - 作者：yunchenqwq
   - GitHub 主页：`https://github.com/YunChenqwq`
   - 仓库地址：`https://github.com/YunChenqwq/easytts`
+- 魔搭社区（ModelScope）地址：
+  - 模板 Space（推荐复制）：`https://www.modelscope.cn/studios/YunChenqwq/easytts-template/summary`
+  - easytts Space：`https://www.modelscope.cn/studios/YunChenqwq/easytts/summary`
 - 上游项目：Genie-TTS（项目来源）
   - `https://github.com/High-Logic/Genie-TTS`
 
@@ -30,23 +33,24 @@ easytts 是一个基于 **Genie-TTS / genie-tts（GPT-SoVITS ONNX 推理引擎�
 
 easytts 是一个基于 **Genie-TTS / genie-tts（GPT-SoVITS ONNX 推理引擎）** 的 WebUI，用于在浏览器里进行文本转语音（TTS），并支持：
 
-- 预设角色：自动从 Hugging Face 下载资源和角色模型，开箱即用
+- 预设角色：自动准备推理资源与角色（取决于运行环境网络；推荐使用魔搭社区模板 Space）
 - 自定义模型（推荐）：作为仓库所有者，把转换后的模型目录直接放进你的仓库（`models/<角色名>/...`），WebUI 启动后会自动识别并在“已导入模型”中可选
 
 > 注意：本项目与上游依赖均有各自的开源协议要求；部署/二次分发请务必遵守（查看各项目 `LICENSE`）。
 
-## 1. 最省事的方式：直接从 Hugging Face 复制
+## 1. 最省事的方式：从魔搭社区复制（推荐）
 
-如果你看到的是 Hugging Face Spaces 页面：
+如果你在魔搭社区打开了模板 Space：
 
-1) 直接点击 **Duplicate Space / 复制 Space**  
-2) （推荐）开启 **Persistent Storage**，这样下载的 `GenieData` 与模型会缓存到 `/data`，下次启动不用重下  
-3) 打开 Space 的 WebUI 使用即可（首次下载可能需要几十秒到数分钟）
+1) 点击 **复制/Clone**（复制到你自己的账号/空间）  
+2) （推荐）开启 **持久化存储**（如果你的空间支持），这样 `GenieData` / 模型缓存不会丢  
+3) 复制完成后打开 WebUI
 
-easytts 会自动下载：
+推荐的上传方式（给小白最省事）：直接用魔搭社区仓库页面自带的“上传文件/文件夹”功能上传模型目录到：
 
-- `GenieData`（约 391MB）
-- 你选择的预设角色模型（首次使用该角色时下载）
+- `CharacterModels/V2/<角色名>/` 或 `CharacterModels/v2ProPlus/<角色名>/`
+
+然后 **重启 Space**（或在 WebUI 里点“刷新角色列表”）即可识别。
 
 ## 2. WebUI 怎么用
 
@@ -144,7 +148,7 @@ easytts 会自动下载：
 
 ## 5. 作为 Python 接口函数库调用（远程）
 
-如果你已经把 easytts 部署到了 ModelScope / HuggingFace（能在浏览器里正常使用 WebUI），你也可以在自己的 Python 项目里直接调用“线上 WebUI”来合成语音。
+如果你已经把 easytts 部署到了魔搭社区（ModelScope Studio / ms.show，能在浏览器里正常使用 WebUI），你也可以在自己的 Python 项目里直接调用“线上 WebUI”来合成语音。
 
 ### 5.1 配置 Token（两选一）
 
