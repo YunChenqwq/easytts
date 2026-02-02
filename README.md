@@ -13,6 +13,13 @@ python_version: "3.10"
 
 easytts 是一个基于 **Genie-TTS / genie-tts（GPT-SoVITS ONNX 推理引擎）** 的 WebUI，用于在浏览器里进行文本转语音（TTS）。
 
+## 教程 / 整合包（新手必看）
+
+- 教程视频（已更新）：`https://www.bilibili.com/video/BV1tqFPzCEfm/`
+- 转换模型一键上传的整合包：进群下载（约 200MB）
+- 插件一键上传整合包（百度网盘）：`https://pan.baidu.com/s/1DWkFq2qlqPLyUkLUrdSh0g?pwd=u59y`
+- 答疑QQ群：`653488716`（没有度盘会员进群下载）
+
 ## 项目与作者
 
 - 本项目：`yunchenqwq/easytts`
